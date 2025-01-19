@@ -9,8 +9,8 @@ def read(fname):
 setup(
     name='fellow-aiden',
     version='0.1.0',
-    description='Interface for interacting with Fellow Aiden coffee brewer.
-    url="https://github.com/9b/fellow-aiden",
+    description='Interface for interacting with Fellow Aiden coffee brewer',
+    url='https://github.com/9b/fellow-aiden',
     author="Brandon Dixon",
     author_email="brandon@9bplus.com",
     license="GNUV3",
@@ -26,11 +26,6 @@ setup(
     ],
     package_data={
         'fellow_aiden': [],
-    },
-    entry_points={
-        'console_scripts': [
-            'pyhottop-test = pyhottop.cli.config:main'
-        ]
     },
     include_package_data=True,
     zip_safe=False,

@@ -3,7 +3,7 @@ import json
 import logging
 import requests
 import sys
-from profile import CoffeeProfile
+from fellow_aiden.profile import CoffeeProfile
 
     
 class FellowAiden:

@@ -1,5 +1,8 @@
 # Fellow Aiden
 
+.. image:: https://badge.fury.io/py/fellow-aiden.svg
+    :target: https://badge.fury.io/py/fellow-aiden
+
 This library provides an interface to the Fellow Aiden coffee brewer.
 
 ## Quick Start

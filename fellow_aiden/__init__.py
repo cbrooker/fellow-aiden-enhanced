@@ -16,7 +16,8 @@ class FellowAiden:
     INTERVAL = 0.5
     BASE_URL = 'https://l8qtmnc692.execute-api.us-west-2.amazonaws.com/v1'
     API_AUTH = '/auth/login'
-    API_DEVICE = '/devices'
+    API_DEVICES = '/devices'
+    API_DEVICE = '/devices/{id}'
     API_PROFILES = '/devices/{id}/profiles'
     API_PROFILE = '/devices/{id}/profiles/{pid}'
     API_SHARED_PROFILE = '/shared/{bid}'
@@ -84,7 +85,7 @@ class FellowAiden:
         
     def __device(self):
         self._log.debug("Fetching device for account")
-        device_url = self.BASE_URL + self.API_DEVICE
+        device_url = self.BASE_URL + self.API_DEVICES
         response = self.SESSION.get(device_url, params={'dataType': 'real'})
         parsed = json.loads(response.content)
         self._device_config = parsed[0]  # Assumes single brewer per account
@@ -111,6 +112,9 @@ class FellowAiden:
             parsed.pop(field, None)
         self._log.debug("Profile fetched: %s" % parsed)
         return parsed
+    
+    def get_device_config(self):
+        return self._device_config
         
     def get_display_name(self):
         return self._device_config.get('displayName', None)

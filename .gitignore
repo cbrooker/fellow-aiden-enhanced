@@ -11,3 +11,4 @@ venv/
 venv3/
 .pypirc
 .notes
+client.py

@@ -7,7 +7,7 @@ def read(fname):
 
 setup(
     name='fellow-aiden',
-    version='0.1.1',
+    version='0.1.2',
     description='Interface for interacting with Fellow Aiden coffee brewer',
     url='https://github.com/9b/fellow-aiden',
     author="Brandon Dixon",
@@ -19,12 +19,13 @@ setup(
         'pydantic>=2.10.5'
     ],
     long_description=read('README.md'),
+    long_description_content_type='text/markdown',
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'Natural Language :: English',
         'Programming Language :: Python',
-        'Topic :: Software Development :: Libraries'
+        'Topic :: Software Development :: Libraries',
     ],
     package_data={
         'fellow_aiden': [],

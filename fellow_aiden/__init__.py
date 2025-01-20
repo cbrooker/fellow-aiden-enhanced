@@ -1,6 +1,7 @@
 """Fellow object to interact with Aiden brewer."""
 import json
 import logging
+import re
 import requests
 import sys
 from fellow_aiden.profile import CoffeeProfile
@@ -18,9 +19,22 @@ class FellowAiden:
     API_DEVICE = '/devices'
     API_PROFILES = '/devices/{id}/profiles'
     API_PROFILE = '/devices/{id}/profiles/{pid}'
+    API_SHARED_PROFILE = '/shared/{bid}'
     HEADERS = {
         'User-Agent': 'Fellow/5 CFNetwork/1568.300.101 Darwin/24.2.0'
     }
+    SERVER_SIDE_PROFILE_FIELDS = [
+        'id',
+        'createdAt',
+        'deletedAt',
+        'lastUsedTime',
+        'sharedFrom',
+        'isDefaultProfile',
+        'instantBrew',
+        'folder',
+        'duration',
+        'lastGBQuantity'
+    ]
     SESSION = requests.Session()
     
 
@@ -78,6 +92,25 @@ class FellowAiden:
         self._profiles = self._device_config['profiles']
         self._log.debug("Brewer ID: %s" % self._brewer_id)
         self._log.info("Device and profile information set")
+
+    def __parse_brewlink_url(self, link):
+        """Extract profile information from a shared brew link."""
+        self._log.debug("Parsing shared brew link")
+        pattern = r'(?:.*?/p/)?([a-zA-Z0-9]+)/?$'
+        match = re.search(pattern, link)
+        if not match:
+            raise ValueError("Invalid profile URL or ID format")
+        brew_id = match.group(1)
+        self._log.debug("Brew ID: %s" % brew_id)
+        shared_url = self.BASE_URL + self.API_SHARED_PROFILE.format(bid=brew_id)
+        response = self.SESSION.get(shared_url)
+        if response.status_code != 200:
+            raise ValueError(f"Failed to fetch profile (ID: {brew_id})")
+        parsed = json.loads(response.content)
+        for field in self.SERVER_SIDE_PROFILE_FIELDS:
+            parsed.pop(field, None)
+        self._log.debug("Profile fetched: %s" % parsed)
+        return parsed
         
     def get_display_name(self):
         return self._device_config.get('displayName', None)
@@ -104,6 +137,13 @@ class FellowAiden:
             raise Exception("Error in processing: %s" % parsed)
         self.__device()  # Refreshed profiles this way
         self._log.debug("Brew profile created: %s" % parsed)
+        return parsed
+
+    def create_profile_from_link(self, link):
+        """Create a profile from a shared brew link."""
+        self._log.debug("Creating profile from link")
+        data = self.__parse_brewlink_url(link)
+        return self.create_profile(data)
         
     def delete_profile_by_id(self, pid):
         self._log.debug("Deleting profile")
@@ -116,3 +156,4 @@ class FellowAiden:
         delete_url = self.BASE_URL + self.API_PROFILE.format(id=self._brewer_id, pid=pid)
         response = self.SESSION.delete(delete_url)
         self._log.info("Profile deleted")
+        return True

@@ -66,6 +66,9 @@ aiden.create_profile(profile)
 
 # Delete a profile
 aiden.delete_profile_by_id('p1')
+
+# Add profile from shared brew link
+aiden.create_profile_from_link('https://brew.link/p/ws98')
 ```
 
 ## Profile Details
@@ -106,3 +109,4 @@ Below is an example profile:
 
 * Access all settings and details from Aiden brewer
 * Manage custom brewing profiles
+* Add shared profiles from URL

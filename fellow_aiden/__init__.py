@@ -94,7 +94,7 @@ class FellowAiden:
         self._log.debug("Brewer ID: %s" % self._brewer_id)
         self._log.info("Device and profile information set")
 
-    def __parse_brewlink_url(self, link):
+    def parse_brewlink_url(self, link):
         """Extract profile information from a shared brew link."""
         self._log.debug("Parsing shared brew link")
         pattern = r'(?:.*?/p/)?([a-zA-Z0-9]+)/?$'
@@ -146,7 +146,7 @@ class FellowAiden:
     def create_profile_from_link(self, link):
         """Create a profile from a shared brew link."""
         self._log.debug("Creating profile from link")
-        data = self.__parse_brewlink_url(link)
+        data = self.parse_brewlink_url(link)
         return self.create_profile(data)
         
     def delete_profile_by_id(self, pid):

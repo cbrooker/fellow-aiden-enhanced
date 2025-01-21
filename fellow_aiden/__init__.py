@@ -113,8 +113,18 @@ class FellowAiden:
         self._log.debug("Profile fetched: %s" % parsed)
         return parsed
     
-    def get_device_config(self):
-        return self._device_config
+    def get_device_config(self, remote=False):
+    """
+    Return the current device config.
+
+    :param remote: If True, force a new request to Fellow's API
+                   to refresh the device config. Otherwise,
+                   returns the cached config.
+    """
+    if remote:
+        self.__device()
+    return self._device_config
+
         
     def get_display_name(self):
         return self._device_config.get('displayName', None)

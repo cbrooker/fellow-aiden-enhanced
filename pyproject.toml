@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fellow-aiden"
-version = "0.1.2"
+version = "0.1.4"
 description = "Interface for interacting with Fellow Aiden coffee brewer"
 readme = "README.md"
 authors = [
@@ -13,7 +13,7 @@ authors = [
 license = { text = "GNUv3" }
 dependencies = [
     "requests>=2.32.3",
-    "pydantic>=2.10.5"
+    "pydantic>=2.10.4"
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

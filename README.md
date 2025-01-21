@@ -110,3 +110,4 @@ Below is an example profile:
 * Access all settings and details from Aiden brewer
 * Manage custom brewing profiles
 * Add shared profiles from URL
+* Brew Studio UI with support for AI, Brew Links and Profile adjustments

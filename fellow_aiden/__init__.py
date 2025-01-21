@@ -171,3 +171,13 @@ class FellowAiden:
         response = self.SESSION.delete(delete_url)
         self._log.info("Profile deleted")
         return True
+        
+    def authenticate(self):
+        """
+        Public method to reauthenticate the user.
+
+        This allows external callers (like HA integration) to trigger
+        reauthentication without accessing the private __auth method.
+        """
+        self._log.debug("Reauthenticating user via public method")
+        self.__auth()

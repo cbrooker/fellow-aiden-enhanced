@@ -89,7 +89,12 @@ Pulse temperate. Independent temperature to use for a given pulse.  Values range
 # ------------------------------------------------------------------------------
 def connect_to_coffee_brewer(email, password):
     """Mock function returning a list of profile dicts."""
-    st.session_state['aiden'] = FellowAiden(email, password)
+    email = email.strip()
+    password = password.strip()
+
+    if 'aiden' not in st.session_state:
+        st.session_state['aiden'] = FellowAiden(email, password)
+        
     obj = {
         'device_settings': {
             'name': st.session_state['aiden'].get_display_name(),

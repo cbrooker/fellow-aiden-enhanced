@@ -94,7 +94,7 @@ def connect_to_coffee_brewer(email, password):
 
     if 'aiden' not in st.session_state:
         st.session_state['aiden'] = FellowAiden(email, password)
-        
+
     obj = {
         'device_settings': {
             'name': st.session_state['aiden'].get_display_name(),
@@ -251,6 +251,7 @@ with st.sidebar:
             key="ai_barista_input"
         )
 
+        openai_api_key = openai_api_key.strip()
         if st.button("Generate AI Profile", key="ai_barista_button"):
             if openai_api_key.strip():
                 st.session_state['oai'] = OpenAI(api_key=openai_api_key)

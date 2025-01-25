@@ -2,7 +2,7 @@
 
 [![PyPI version](https://badge.fury.io/py/fellow-aiden.svg)](https://badge.fury.io/py/fellow-aiden)
 
-This library provides an interface to the Fellow Aiden coffee brewer. An additional brew studio UI with support for AI-generated recipes is also included. 
+This library provides an interface to the Fellow Aiden coffee brewer. An additional brew studio UI with support for AI-generated recipes is also included. You can run the Brew Studio locally on your system or make use of the hosted version: [https://fellow-brew-studio.streamlit.app/](https://fellow-brew-studio.streamlit.app/)
 
 ![Fellow Brew Studio](https://github.com/9b/fellow-aiden/blob/master/brew_studio/fellow-brew-studio.png?raw=true)
 

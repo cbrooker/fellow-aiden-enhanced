@@ -1,6 +1,8 @@
 # Fellow Brew Studio
 This is an AI-generated interface to manage brew profiles built atop the Fellow Aiden library. 
 
+![Fellow Brew Studio](https://github.com/9b/fellow-aiden/blob/master/brew_studio/fellow-brew-studio.png?raw=true)
+
 ## Requirements
 ```sh
 pip install fellow-aiden

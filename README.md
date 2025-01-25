@@ -121,4 +121,6 @@ Below is an example profile:
 * Access all settings and details from Aiden brewer
 * Manage custom brewing profiles
 * Add shared profiles from URL
+* Generate share links from custom profiles
+* Search profiles using title (match and fuzzy)
 * Brew Studio UI with support for AI, Brew Links and Profile adjustments

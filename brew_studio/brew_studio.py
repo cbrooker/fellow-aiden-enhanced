@@ -266,7 +266,12 @@ with st.sidebar:
             if openai_api_key.strip():
                 st.session_state['oai'] = OpenAI(api_key=openai_api_key)
                 if user_coffee_request.strip():
-                    new_profile_data = generate_ai_recipe_and_explanation(user_coffee_request)
+
+                    try:
+                        new_profile_data = generate_ai_recipe_and_explanation(user_coffee_request)
+                    except Exception as e:
+                        st.warning(f"Failed to generate AI recipe: {e}")
+                        new_profile_data = None
                     
                     # 2. Clear out old “new_*” keys
                     for key in list(st.session_state.keys()):

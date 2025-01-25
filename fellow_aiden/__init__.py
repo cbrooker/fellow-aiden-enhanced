@@ -4,7 +4,12 @@ import logging
 import re
 import requests
 import sys
+from difflib import SequenceMatcher
 from fellow_aiden.profile import CoffeeProfile
+
+
+def similar(a, b):
+    return SequenceMatcher(None, a, b).ratio()
 
     
 class FellowAiden:
@@ -20,6 +25,7 @@ class FellowAiden:
     API_DEVICE = '/devices/{id}'
     API_PROFILES = '/devices/{id}/profiles'
     API_PROFILE = '/devices/{id}/profiles/{pid}'
+    API_PROFILE_SHARE = '/devices/{id}/profiles/{pid}/share'
     API_SHARED_PROFILE = '/shared/{bid}'
     HEADERS = {
         'User-Agent': 'Fellow/5 CFNetwork/1568.300.101 Darwin/24.2.0'
@@ -114,16 +120,15 @@ class FellowAiden:
         return parsed
     
     def get_device_config(self, remote=False):
-    """
-    Return the current device config.
+        """Return the current device config.
 
-    :param remote: If True, force a new request to Fellow's API
-                   to refresh the device config. Otherwise,
-                   returns the cached config.
-    """
-    if remote:
-        self.__device()
-    return self._device_config
+        :param remote: If True, force a new request to Fellow's API
+                    to refresh the device config. Otherwise,
+                    returns the cached config.
+        """
+        if remote:
+            self.__device()
+        return self._device_config
 
         
     def get_display_name(self):
@@ -131,6 +136,15 @@ class FellowAiden:
         
     def get_profiles(self):
         return self._profiles
+    
+    def get_profile_by_title(self, title, fuzzy=False):
+        for profile in self._profiles:
+            if fuzzy:
+                if similar(profile['title'].lower(), title.lower()) > 0.65:
+                    return profile
+            if profile['title'].lower() == title.lower():
+                return profile
+        return None
         
     def get_brewer_id(self):
         return self._brewer_id
@@ -158,6 +172,18 @@ class FellowAiden:
         self._log.debug("Creating profile from link")
         data = self.parse_brewlink_url(link)
         return self.create_profile(data)
+    
+    def generate_share_link(self, pid):
+        """Generate a share link for a profile."""
+        self._log.debug("Generating share link")
+        share_url = self.BASE_URL + self.API_PROFILE_SHARE.format(id=self._brewer_id, pid=pid)
+        self._log.debug("Share URL: %s" % share_url)
+        response = self.SESSION.post(share_url)
+        parsed = json.loads(response.content)
+        if 'link' not in parsed:
+            raise Exception("Error in processing: %s" % parsed)
+        self._log.debug("Share link generated: %s" % parsed)
+        return parsed['link']
         
     def delete_profile_by_id(self, pid):
         self._log.debug("Deleting profile")

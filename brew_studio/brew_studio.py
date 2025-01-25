@@ -171,6 +171,11 @@ def generate_ai_recipe_and_explanation(USER):
     recipe['description'] = model_explanation
     return recipe
 
+
+def get_share_link(title):
+    profile = st.session_state['aiden'].get_profile_by_title(title)
+    return st.session_state['aiden'].generate_share_link(profile['id'])
+
 # ------------------------------------------------------------------------------
 # Streamlit Setup
 # ------------------------------------------------------------------------------
@@ -369,6 +374,11 @@ def render_profile_editor(profile_dict, profile_key="existing"):
         # Overwrite the original dict so we see changes right away
         for k, v in updated_profile.items():
             profile_dict[k] = v
+
+    if st.button("Share", key=ss_key("share_button")):
+        link = get_share_link(profile_dict["title"])
+        if link:
+            st.write(f"**Share Link**: {link}")
 
     # Bloom
     bloom_enabled = st.checkbox(

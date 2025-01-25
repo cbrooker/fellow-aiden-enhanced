@@ -41,10 +41,10 @@ PASSWORD = os.environ['FELLOW_PASSWORD']
 aiden = FellowAiden(EMAIL, PASSWORD)
 
 # Get display name of brewer
-aiden.get_display_name()
+name = aiden.get_display_name()
 
 # Get profiles
-aiden.get_profiles()
+profiles = aiden.get_profiles()
 
 # Add a profile
 profile = {
@@ -66,8 +66,17 @@ profile = {
 }
 aiden.create_profile(profile)
 
+# Find profile
+pid = None
+option = aiden.get_profile_by_title('FellowAiden', fuzzy=True)
+if option:
+    pid = option['id'] # p0
+
+# Share a profile
+share_link = aiden.generate_share_link(pid)
+
 # Delete a profile
-aiden.delete_profile_by_id('p1')
+aiden.delete_profile_by_id(pid)
 
 # Add profile from shared brew link
 aiden.create_profile_from_link('https://brew.link/p/ws98')

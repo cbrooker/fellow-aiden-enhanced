@@ -121,7 +121,25 @@ def parse_brewlink(link):
     return parsed
 
 
-# This function is where you'd call OpenAI or another AI model.
+def extract_recipe_from_description(model_explanation):
+    """Extracts the recipe from the description."""
+    try:
+        completion = st.session_state['oai'].beta.chat.completions.parse(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": REFORMAT_SYSTEM},
+                {"role": "user", "content": model_explanation},
+            ],
+            response_format=CoffeeProfile,
+        )
+        model_recipe = completion.choices[0].message.parsed
+    except Exception as e:
+        print("Failed to extract recipe from description:", e)
+        return False
+    
+    return model_recipe
+
+
 def generate_ai_recipe_and_explanation(USER):
     guidance = "Suggest a recipe for the following coffee. Provide your explanations below the recipe.\n"
     USER = ' '.join([guidance, USER])
@@ -134,17 +152,12 @@ def generate_ai_recipe_and_explanation(USER):
     model_explanation = completion.choices[0].message.content
     print(model_explanation)
 
-    completion = st.session_state['oai'].beta.chat.completions.parse(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": REFORMAT_SYSTEM},
-            {"role": "user", "content": model_explanation},
-        ],
-        response_format=CoffeeProfile,
-    )
+    while True:
+        model_recipe = extract_recipe_from_description(model_explanation)
+        if model_recipe:
+            break
 
-    model_recipe = completion.choices[0].message.parsed
-    recipe = model_recipe.dict()
+    recipe = model_recipe.model_dump()
     recipe['description'] = model_explanation
     return recipe
 

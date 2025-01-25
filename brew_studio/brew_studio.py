@@ -93,7 +93,12 @@ def connect_to_coffee_brewer(email, password):
     password = password.strip()
 
     if 'aiden' not in st.session_state:
-        st.session_state['aiden'] = FellowAiden(email, password)
+        try:
+            local = FellowAiden(email, password)
+        except Exception as e:
+            if "incorrect" in str(e):
+                return False
+        st.session_state['aiden'] = local
 
     obj = {
         'device_settings': {
@@ -206,8 +211,13 @@ with st.sidebar:
 
     # Connect button
     if st.button("Connect"):
-        result = connect_to_coffee_brewer(email, password)
-        st.session_state.brewer_settings = result
+        if email and password:
+            result = connect_to_coffee_brewer(email, password)
+            if not result:
+                st.warning("Incorrect email or password.")
+            st.session_state.brewer_settings = result
+        else:
+            st.warning("Please enter email and password first.")
 
     st.markdown("---")
 

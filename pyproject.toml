@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fellow-aiden"
-version = "0.1.6"
+version = "0.1.7"
 description = "Interface for interacting with Fellow Aiden coffee brewer"
 readme = "README.md"
 authors = [

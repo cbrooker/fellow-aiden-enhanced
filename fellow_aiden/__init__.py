@@ -6,6 +6,7 @@ import requests
 import sys
 from difflib import SequenceMatcher
 from fellow_aiden.profile import CoffeeProfile
+from pydantic import ValidationError
 
 
 def similar(a, b):

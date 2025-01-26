@@ -120,7 +120,10 @@ def save_profile_to_coffee_machine(profile_name, updated_profile):
     if 'description' in updated_profile:
         updated_profile.pop('description', None)
     updated_profile['profileType'] = 0
-    st.session_state['aiden'].create_profile(updated_profile)
+    try:
+        st.session_state['aiden'].create_profile(updated_profile)
+    except Exception as e:
+        st.warning(f"Failed to save profile: {e}")
 
 def parse_brewlink(link):
     """Returns a dict with all profile fields parsed from the link."""
@@ -369,6 +372,7 @@ def render_profile_editor(profile_dict, profile_key="existing"):
             "batchPulsesInterval": st.session_state.get(ss_key("batchPulsesInterval"), profile_dict.get("batchPulsesInterval", 10)),
             "batchPulseTemperatures": st.session_state.get(ss_key("batchPulseTemperatures"), profile_dict.get("batchPulseTemperatures", [93])),
         }
+        # print(updated_profile)
         save_profile_to_coffee_machine(updated_profile["title"], updated_profile)
 
         # Overwrite the original dict so we see changes right away

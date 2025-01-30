@@ -12,3 +12,4 @@ venv3/
 .pypirc
 .notes
 client.py
+.devcontainer

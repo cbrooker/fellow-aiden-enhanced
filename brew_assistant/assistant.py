@@ -235,7 +235,7 @@ def handle_requires_action(tool_request):
                 aiden = st.session_state.get("fellow_aiden")
                 remote_arg = function_arguments.get("remote", True)
                 try:
-                    device_config = aiden.get_device_config(remote=remote_arg)
+                    device_config = aiden.get_device_config(remote=True)
                     # Return as JSON so the Assistant can parse it
                     tool_outputs.append({
                         "tool_call_id": tool.id,

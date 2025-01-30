@@ -13,3 +13,4 @@ venv3/
 .notes
 client.py
 .devcontainer
+.streamlit

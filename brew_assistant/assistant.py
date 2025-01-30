@@ -335,6 +335,26 @@ def main():
     assistant_id = st.sidebar.text_input("OpenAI Assistant ID", type="password")
     openai_api_key = st.sidebar.text_input("OpenAI API Key", type="password")
 
+    derived = False
+
+    if 'fellow_email' in st.secrets:
+        email = st.secrets['fellow_email']
+    if 'fellow_password' in st.secrets:
+        derived = True
+        password = st.secrets['fellow_password']
+    if 'openai_assistant_id' in st.secrets:
+        assistant_id = st.secrets['openai_assistant_id']
+    if 'openai_api_key' in st.secrets:
+        openai_api_key = st.secrets['openai_api_key']
+
+
+    if derived and not ss['fellow_aiden']:
+        try:
+            ss["fellow_aiden"] = FellowAiden(email, password)
+            st.success("FellowAiden initialized!")
+        except Exception as e:
+            st.error(f"Failed to init FellowAiden: {e}")
+
     if st.sidebar.button("Log in") and not ss['fellow_aiden']:
         try:
             ss["fellow_aiden"] = FellowAiden(email, password)

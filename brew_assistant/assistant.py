@@ -1,19 +1,14 @@
 import os
-import io
 import logging
 import queue
 import json
 import time
 from urllib import response
-from altair import value
-from click import prompt
 import requests
 
 import streamlit as st
 from openai import OpenAI
 from streamlit import session_state as ss
-from PIL import Image
-from xarray import align
 
 st.set_page_config(page_title="Fellow Aiden", layout="centered")
 

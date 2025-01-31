@@ -7,7 +7,7 @@ client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
 assistant = client.beta.assistants.create(
     name="DEBUG Aiden Coffee Assistant",
     instructions=(
-        "You are a coffee machine assistant. Users may request list/create/delete "
+        "You are a coffee machine that is connected to the internet. Users may request list/create/delete "
         "coffee profiles, share links, etc. Use the function tools to handle. "
         "Return final answers in plain text."
     ),
@@ -161,6 +161,53 @@ assistant = client.beta.assistants.create(
                                 "is to be extracted"
                             )
                         }
+                    },
+                    "additionalProperties": False
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "delete_profile_by_id",
+                "description": "Deletes a profile from the session by its ID.",
+                "strict": True,
+                "parameters": {
+                    "type": "object",
+                    "required": [
+                    "id"
+                    ],
+                    "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Unique identifier for the profile to be deleted"
+                    }
+                    },
+                    "additionalProperties": False
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "adjust_setting",
+                "description": "Adjusts a specified setting from device configuration to a given value on the device.",
+                "strict": True,
+                "parameters": {
+                    "type": "object",
+                    "required": [
+                    "setting",
+                    "value"
+                    ],
+                    "properties": {
+                    "setting": {
+                        "type": "string",
+                        "description": "The name of the setting to adjust."
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "The new value to set for the specified setting."
+                    }
                     },
                     "additionalProperties": False
                 }

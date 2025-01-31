@@ -198,6 +198,12 @@ class FellowAiden:
         response = self.SESSION.delete(delete_url)
         self._log.info("Profile deleted")
         return True
+    
+    def adjust_setting(self, setting, value):
+        patch_url = self.BASE_URL + self.API_DEVICE.format(id=self._brewer_id)
+        data = json.dumps({setting: value})
+        response = self.SESSION.patch(patch_url, data=data)
+        return response.content
         
     def authenticate(self):
         """

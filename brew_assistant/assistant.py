@@ -4,12 +4,16 @@ import logging
 import queue
 import json
 import time
+from urllib import response
+from altair import value
+from click import prompt
 import requests
 
 import streamlit as st
 from openai import OpenAI
 from streamlit import session_state as ss
 from PIL import Image
+from xarray import align
 
 st.set_page_config(page_title="Fellow Aiden", layout="centered")
 
@@ -97,6 +101,26 @@ Time between pulses: Time in between each pulse. Values range from 5 to 60 secon
 Pulse temperate. Independent temperature to use for a given pulse.  Values range from 50 celsius to 99 celsius. 
 """
 
+CONFIG_ALIGNMENT = """
+Assume the role of a data engineer. You are provided limited context of a setting to adjust. Use the information below to match the most likely setting and infer if the value type format is correct. If it's not, adjust it.
+
+For example, assume you have the following settings and values:
+    'languageCode': 'en-us',
+    'serialNumber': '157024280390',
+    'deviceTimezone': 'EST5EDT',
+    'displayClock24hrMode': True,
+    'displayClock': True,
+    'doBrewCancel': None,
+    'doBrew': None,
+
+If the context is "time-format" and value is 12, then the best setting would be displayClock24hrMode and value set to False.
+
+Here are all the possible settings:
+{0}
+
+Output as a json object.
+"""
+
 AIDEN_STARTER = """
 Hey, I am Aiden! You can ask me about different coffees using URLs or descriptions. 
 I can acess your existing profiles, generate new ones and save them for brewing. How can I help?
@@ -124,6 +148,43 @@ def init_logging():
 
 logger = init_logging()
 
+def infer_setting_from_context(device_config, context, value):
+    """Uses context to infer what setting should be adjusted."""
+    try:
+        prompt = CONFIG_ALIGNMENT.format(device_config)
+        completion = ss["openai"].beta.chat.completions.parse(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": "Context: " + context + "\nValue: " + value},
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "setting_response",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "setting": {
+                                "type": "string"
+                            },
+                            "value": {
+                                "type": "string"
+                            }
+                        },
+                        "required": ["setting", "value"],
+                        "additionalProperties": False
+                    }
+                }
+            }
+        )
+        alignment = completion.choices[0].message.content
+        alignment = json.loads(alignment)
+    except Exception as e:
+        print("Failed to infer setting from context:", e)
+        return False
+    return alignment
 
 def extract_recipe_from_description(model_explanation):
     """Extracts the recipe from the description."""
@@ -164,8 +225,6 @@ def handle_requires_action(tool_request):
     We see which function the model wants, call the real library or mock.
     Then we submit the outputs back to the run.
     """
-    st.toast("Running a function", icon=":material/function:")
-
     tool_outputs = []
     data = tool_request.data
 
@@ -174,6 +233,8 @@ def handle_requires_action(tool_request):
             function_arguments = json.loads(tool.function.arguments)
         else:
             function_arguments = {}
+
+        st.toast(f"Executing tool: {tool.function.name}", icon=":material/function:")
 
         match tool.function.name:
 
@@ -208,6 +269,21 @@ def handle_requires_action(tool_request):
                     }
                     tool_outputs.append({"tool_call_id": tool.id, "output": json.dumps(error_msg)})
 
+            case "delete_profile_by_id":
+                logger.info("Calling delete_profile function")
+                aiden = st.session_state.get("fellow_aiden")
+                link = function_arguments.get("id")
+                try:
+                    new_profile = aiden.delete_profile_by_id(link)
+                    tool_outputs.append({"tool_call_id": tool.id, "output": json.dumps(new_profile)})
+                except Exception as e:
+                    logger.exception("Failed to delete profile by ID")
+                    error_msg = {
+                        "status": "error",
+                        "message": f"Error deleting profile from link: {str(e)}"
+                    }
+                    tool_outputs.append({"tool_call_id": tool.id, "output": json.dumps(error_msg)})
+
             case "scrape_website":
                 url = function_arguments.get("url")
                 result = scrape_website(url)
@@ -217,6 +293,34 @@ def handle_requires_action(tool_request):
                 coffee_description = function_arguments.get("coffee_description")
                 result = generate_recipe(coffee_description)
                 tool_outputs.append({"tool_call_id": tool.id, "output": json.dumps(result)})
+
+            case "adjust_setting":
+                aiden = st.session_state.get("fellow_aiden")
+                device_settings = aiden.get_device_config()
+                context_setting = function_arguments.get("setting")
+                context_value = function_arguments.get("value")
+                alignment = infer_setting_from_context(device_settings, context_setting, context_value)
+                if alignment:
+                    try:
+                        adjustment = aiden.adjust_setting(alignment['setting'], alignment['value'])
+                        tool_outputs.append({
+                            "tool_call_id": tool.id,
+                            "output": "Successfully adjusted setting"
+                        })
+                    except Exception as e:
+                        logger.exception("Failed to adjust setting")
+                        error_msg = {
+                            "status": "error",
+                            "message": f"Error adjusting device setting: {str(e)}"
+                        }
+                        tool_outputs.append({"tool_call_id": tool.id, "output": error_msg})
+                else:
+                    logger.error("Failed to infer setting from context")
+                    error_msg = {
+                        "status": "error",
+                        "message": "Failed to infer setting from context"
+                    }
+                    tool_outputs.append({"tool_call_id": tool.id, "output": json.dumps(error_msg)})
 
             case "save_recipe":
                 recipe_description = function_arguments.get("recipe_description")
@@ -291,7 +395,7 @@ def data_streamer():
                 logger.info(f"Run requires action: {response}")
                 tool_requests.put(response)
                 if not content_produced:
-                    yield "Executing a tool..."
+                    yield "Executing %s..." % response.data.required_action.submit_tool_outputs.tool_calls[0].function.name
                 return  # End streaming - we'll handle the function call
 
             case "thread.run.failed":
@@ -387,7 +491,7 @@ def main():
 
     ready = bool(email and password and assistant_id and openai_api_key)
 
-    if prompt := st.chat_input("Ask Aiden to generate a recipe from a roaster URL..."):
+    if prompt := st.chat_input("Ask to generate a recipe from a roaster URL..."):
 
         if not ready:
             st.warning(f"Ensure all settings are filled in on the side bar.")

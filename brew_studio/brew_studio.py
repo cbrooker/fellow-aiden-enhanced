@@ -321,6 +321,8 @@ with st.sidebar:
         st.markdown("**Connected Brewer Settings**")
         for k, v in device_info.items():
             st.write(f"**{k.replace('_', ' ').title()}**: {v}")
+        if st.button("Dump Config"):
+            st.write(st.session_state['aiden'].get_device_config())
 
 
 

@@ -202,7 +202,7 @@ def generate_recipe(coffee_description):
     guidance = "Suggest a recipe for the following coffee. Provide your explanations below the recipe.\n"
     coffee_description = ' '.join([guidance, coffee_description])
     completion = ss["openai"].chat.completions.create(
-        model="o1-preview",
+        model="o3-mini",
         messages=[
             {"role": "user", "content": SYSTEM + coffee_description},
         ]

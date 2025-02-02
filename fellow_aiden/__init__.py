@@ -214,3 +214,9 @@ class FellowAiden:
         """
         self._log.debug("Reauthenticating user via public method")
         self.__auth()
+
+    def test(self, new_id):
+        url = self.BASE_URL + self.API_DEVICE.format(id=new_id)
+        print(url)
+        response = self.SESSION.get(url)
+        return response.content

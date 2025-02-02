@@ -15,6 +15,9 @@ st.set_page_config(page_title="Fellow Aiden", layout="centered")
 from fellow_aiden import FellowAiden
 from fellow_aiden.profile import CoffeeProfile
 
+from pillar import Pillar
+ss['pillar'] = Pillar('https://api.pillar.security', app_id=st.secrets['pillar_app_id'], api_key=st.secrets['pillar_api_key'])
+
 
 SYSTEM = """
 Assume the role of a master coffee brewer. You focus exclusively on the pour over method and specialty coffee only. You often work with single origin coffees, but you also experiment with blends. Your recipes are executed by a robot, not a human, so maximum precision can be achieved. Temperatures are all maintained and stable in all steps. Always lead with the recipe, and only include explanations below that text, NOT inline. Below are the components of a recipe. 

@@ -6,6 +6,7 @@ import requests
 import sys
 from difflib import SequenceMatcher
 from fellow_aiden.profile import CoffeeProfile
+from fellow_aiden.schedule import CoffeeSchedule
 from pydantic import ValidationError
 
 
@@ -24,6 +25,8 @@ class FellowAiden:
     API_AUTH = '/auth/login'
     API_DEVICES = '/devices'
     API_DEVICE = '/devices/{id}'
+    API_SCHEDULES = '/devices/{id}/schedules'
+    API_SCHEDULE = '/devices/{id}/schedules/{sid}'
     API_PROFILES = '/devices/{id}/profiles'
     API_PROFILE = '/devices/{id}/profiles/{pid}'
     API_PROFILE_SHARE = '/devices/{id}/profiles/{pid}/share'
@@ -98,8 +101,13 @@ class FellowAiden:
         self._device_config = parsed[0]  # Assumes single brewer per account
         self._brewer_id = self._device_config['id']
         self._profiles = self._device_config['profiles']
+        self._schedules = self._device_config['schedules']
         self._log.debug("Brewer ID: %s" % self._brewer_id)
         self._log.info("Device and profile information set")
+
+    def __get_profile_ids(self):
+        """Return a list of profile IDs."""
+        return ["%s (%s)" % (profile['id'], profile['title']) for profile in self._profiles]
 
     def parse_brewlink_url(self, link):
         """Extract profile information from a shared brew link."""
@@ -156,8 +164,12 @@ class FellowAiden:
             CoffeeProfile.model_validate(data)
         except ValidationError as err:
             self._log.error("Brew profile format was invalid: %s" % err)
+            return False
+        
         if 'id' in data.keys():
             raise Exception("Candidate profiles must be free of server derived fields.")
+            return False
+        
         self._log.debug("Brew profile passed checks")
         profile_url = self.BASE_URL + self.API_PROFILES.format(id=self._brewer_id)
         response = self.SESSION.post(profile_url, json=data)
@@ -166,6 +178,31 @@ class FellowAiden:
             raise Exception("Error in processing: %s" % parsed)
         self.__device()  # Refreshed profiles this way
         self._log.debug("Brew profile created: %s" % parsed)
+        return parsed
+    
+    def create_schedule(self, data):
+        self._log.debug("Checking schedule: %s" % data)
+        try:
+            CoffeeSchedule.model_validate(data)
+        except ValidationError as err:
+            self._log.error("Brew schedule format was invalid: %s" % err)
+            return False
+        
+        if 'id' in data.keys():
+            raise Exception("Candidate schedules must be free of server derived fields.")
+            return False
+    
+        self._log.debug("Brew schedule passed checks")
+        schedule_url = self.BASE_URL + self.API_SCHEDULES.format(id=self._brewer_id)
+        response = self.SESSION.post(schedule_url, json=data)
+        parsed = json.loads(response.content)
+        if 'id' not in parsed:
+            message = parsed.get('message', 'Unable to get error message.')
+            if 'Profile could not be found' in message:
+                message += "Valid profiles: %s" % self.__get_profile_ids()
+            raise Exception("Error in processing: %s" % message)
+        self.__device()  # Refreshed schedules this way
+        self._log.debug("Brew schedule created: %s" % parsed)
         return parsed
 
     def create_profile_from_link(self, link):
@@ -199,6 +236,19 @@ class FellowAiden:
         self._log.info("Profile deleted")
         return True
     
+    def delete_schedule_by_id(self, sid):
+        self._log.debug("Deleting schedule")
+        found = False
+        for schedule in self._schedules:
+            if sid == schedule['id']:
+                found = True
+        if not found:
+            raise Exception("Schedule does not exist")
+        delete_url = self.BASE_URL + self.API_SCHEDULE.format(id=self._brewer_id, sid=sid)
+        response = self.SESSION.delete(delete_url)
+        self._log.info("Schedule deleted")
+        return True
+    
     def adjust_setting(self, setting, value):
         patch_url = self.BASE_URL + self.API_DEVICE.format(id=self._brewer_id)
         data = json.dumps({setting: value})
@@ -214,9 +264,3 @@ class FellowAiden:
         """
         self._log.debug("Reauthenticating user via public method")
         self.__auth()
-
-    def test(self, new_id):
-        url = self.BASE_URL + self.API_DEVICE.format(id=new_id)
-        print(url)
-        response = self.SESSION.get(url)
-        return response.content

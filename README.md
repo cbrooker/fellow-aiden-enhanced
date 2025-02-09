@@ -80,40 +80,20 @@ aiden.delete_profile_by_id(pid)
 
 # Add profile from shared brew link
 aiden.create_profile_from_link('https://brew.link/p/ws98')
-```
 
-## Profile Details
+# Add a schedule
+schedule = {
+    "days": [True, True, False, True, False, True, False], // sunday - saturday
+    "secondFromStartOfTheDay": 28800, // time since 12 am
+    "enabled": True,
+    "amountOfWater": 950, // 150 - 1500
+    "profileId": "p7", // must be valid profile
+}
+aiden.create_schedule(schedule)
 
-Below is an example profile:
+# Delete a schedule
+aiden.delete_schedule_by_id('s0')
 
-```json
-[{
-    "id": "p0",
-    "profileType": 0,
-    "title": "Hot Water",
-    "ratio": 15,
-    "bloomRatio": null,
-    "bloomDuration": null,
-    "bloomTemperature": null,
-    "ssPulsesNumber": 1,
-    "ssPulsesInterval": 1,
-    "ssPulseTemperatures": [99],
-    "batchPulsesNumber": 1,
-    "batchPulsesInterval": 5,
-    "batchPulseTemperatures": [99],
-    "overallTemperature": null,
-    "isDefaultProfile": false,
-    "bloomEnabled": false,
-    "instantBrew": false,
-    "folder": "Custom",
-    "duration": null,
-    "lastGBQuantity": null,
-    "lastUsedTime": null,
-    "deviceId": "FB_02c4139a-50c6-f4ce-363b-6f9e1840307e",
-    "ssPulsesEnabled": true,
-    "batchPulsesEnabled": true,
-    "synced": true
-}]
 ```
 
 ## Features
@@ -123,4 +103,5 @@ Below is an example profile:
 * Add shared profiles from URL
 * Generate share links from custom profiles
 * Search profiles using title (match and fuzzy)
+* Manage custom brewing schedules
 * Brew Studio UI with support for AI, Brew Links and Profile adjustments

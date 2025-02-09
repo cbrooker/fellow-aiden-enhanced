@@ -11,4 +11,4 @@ urllib3==2.3.0
 wheel==0.44.0
 openai==1.59.8
 pillar-security
-fellow-aiden==0.1.9
+fellow-aiden==0.2.0

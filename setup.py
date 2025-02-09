@@ -7,7 +7,7 @@ def read(fname):
 
 setup(
     name='fellow-aiden',
-    version='0.1.9',
+    version='0.2.0',
     description='Interface for interacting with Fellow Aiden coffee brewer',
     url='https://github.com/9b/fellow-aiden',
     author="Brandon Dixon",

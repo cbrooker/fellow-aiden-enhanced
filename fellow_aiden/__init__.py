@@ -108,6 +108,24 @@ class FellowAiden:
     def __get_profile_ids(self):
         """Return a list of profile IDs."""
         return ["%s (%s)" % (profile['id'], profile['title']) for profile in self._profiles]
+    
+    def __is_valid_profile_id(self, pid):
+        """Check if a profile ID is valid."""
+        for profile in self._profiles:
+            if pid == profile['id']:
+                return True
+        return False
+    
+    def __get_schedule_ids(self):
+        """Return a list of schedule IDs."""
+        return ["%s" % (schedule['id']) for schedule in self._schedules]
+    
+    def __is_valid_schedule_id(self, sid):
+        """Check if a schedule ID is valid."""
+        for schedule in self._schedules:
+            if sid == schedule['id']:
+                return True
+        return False
 
     def parse_brewlink_url(self, link):
         """Extract profile information from a shared brew link."""
@@ -145,6 +163,9 @@ class FellowAiden:
         
     def get_profiles(self):
         return self._profiles
+    
+    def get_schedules(self):
+        return self._schedules
     
     def get_profile_by_title(self, title, fuzzy=False):
         for profile in self._profiles:
@@ -225,33 +246,40 @@ class FellowAiden:
         
     def delete_profile_by_id(self, pid):
         self._log.debug("Deleting profile")
-        found = False
-        for profile in self._profiles:
-            if pid == profile['id']:
-                found = True
-        if not found:
-            raise Exception("Profile does not exist")
+        if not self.__is_valid_profile_id(pid):
+            message = "Profile does not exist. Valid profiles: %s" % (self.__get_profile_ids())
+            raise Exception(message)
         delete_url = self.BASE_URL + self.API_PROFILE.format(id=self._brewer_id, pid=pid)
+        self._log.debug(delete_url)
         response = self.SESSION.delete(delete_url)
         self._log.info("Profile deleted")
         return True
     
     def delete_schedule_by_id(self, sid):
         self._log.debug("Deleting schedule")
-        found = False
-        for schedule in self._schedules:
-            if sid == schedule['id']:
-                found = True
-        if not found:
-            raise Exception("Schedule does not exist")
+        if not self.__is_valid_schedule_id(sid):
+            message = "Schedule does not exist. Valid schedules: %s" % (self.__get_schedule_ids())
+            raise Exception(message)
         delete_url = self.BASE_URL + self.API_SCHEDULE.format(id=self._brewer_id, sid=sid)
+        self._log.debug(delete_url)
         response = self.SESSION.delete(delete_url)
         self._log.info("Schedule deleted")
         return True
     
     def adjust_setting(self, setting, value):
         patch_url = self.BASE_URL + self.API_DEVICE.format(id=self._brewer_id)
+        self._log.debug("Patch URL: %s" % patch_url)
         data = json.dumps({setting: value})
+        response = self.SESSION.patch(patch_url, data=data)
+        return response.content
+    
+    def toggle_schedule(self, sid, enabled):
+        if not self.__is_valid_schedule_id(sid):
+            message = "Schedule does not exist. Valid schedules: %s" % (self.__get_schedule_ids())
+            raise Exception(message)
+        patch_url = self.BASE_URL + self.API_SCHEDULE.format(id=self._brewer_id, sid=sid)
+        self._log.debug("Patch URL: %s" % patch_url)
+        data = json.dumps({'enabled': enabled})
         response = self.SESSION.patch(patch_url, data=data)
         return response.content
         

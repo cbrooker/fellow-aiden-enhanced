@@ -120,8 +120,18 @@ def save_profile_to_coffee_machine(profile_name, updated_profile):
     if 'description' in updated_profile:
         updated_profile.pop('description', None)
     updated_profile['profileType'] = 0
+    
     try:
-        st.session_state['aiden'].create_profile(updated_profile)
+        # Check if a profile with this name already exists
+        existing_profile = st.session_state['aiden'].get_profile_by_title(profile_name)
+        
+        if existing_profile:
+            # If profile exists, update it
+            profile_id = existing_profile['id']
+            st.session_state['aiden'].update_profile(profile_id, updated_profile)
+        else:
+            # If profile doesn't exist, create a new one
+            st.session_state['aiden'].create_profile(updated_profile)
     except Exception as e:
         st.warning(f"Failed to save profile: {e}")
 
@@ -244,7 +254,7 @@ with st.sidebar:
             # 1. Parse the new data
             new_profile_data = parse_brewlink(brew_link)
             
-            # 2. Clear out old “new_*” keys
+            # 2. Clear out old "new_*" keys
             for key in list(st.session_state.keys()):
                 if key.startswith("new_"):
                     del st.session_state[key]
@@ -281,7 +291,7 @@ with st.sidebar:
                         st.warning(f"Failed to generate AI recipe: {e}")
                         new_profile_data = None
                     
-                    # 2. Clear out old “new_*” keys
+                    # 2. Clear out old "new_*" keys
                     for key in list(st.session_state.keys()):
                         if key.startswith("new_"):
                             del st.session_state[key]

@@ -29,7 +29,7 @@ class CoffeeProfile(BaseModel):
     
     @field_validator('title')
     @classmethod
-    def validate_ratio(cls, v):
+    def validate_title(cls, v):
         if len(v) > 50:
             raise ValueError(f"title must be less than or equal to 50 characters. Got {v}")
         return v

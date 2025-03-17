@@ -17,15 +17,15 @@ class CoffeeProfile(BaseModel):
     bloomEnabled: bool
     bloomRatio: float
     bloomDuration: int
-    bloomTemperature: int
+    bloomTemperature: float
     ssPulsesEnabled: bool
     ssPulsesNumber: int
     ssPulsesInterval: int
-    ssPulseTemperatures: List[int]
+    ssPulseTemperatures: List[float]
     batchPulsesEnabled: bool
     batchPulsesNumber: int
     batchPulsesInterval: int
-    batchPulseTemperatures: List[int]
+    batchPulseTemperatures: List[float]
     
     @field_validator('title')
     @classmethod

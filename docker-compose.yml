@@ -1,0 +1,10 @@
+fellowaiden:
+    image: my-brew-studio-build
+    container_name: fellowaiden
+    build:
+      context: .
+      dockerfile: Dockerfile 
+    ports:
+      - 8501:8501
+    environment:
+      - PORT=8501

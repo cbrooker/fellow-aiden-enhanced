@@ -12,7 +12,7 @@ PULSES_INTERVAL_ENUM = list(range(5, 61))                        # 5 to 60
 PULSE_TEMPERATURE_ENUM = [50 + 0.5 * i for i in range(99)]       # 50, 50.5, 51, 51.5 ... 99
 
 # allows A–Z, a–z, 0–9, and the specials !@#$%&*-+?/.,:)(
-TITLE_REGEX = re.compile(r'[A-Za-z0-9!@#$%&*\-+?/.,:)(]+')
+TITLE_REGEX = re.compile(r'[A-Za-z0-9 !@#$%&*\-+?/.,:)(]+')
 
 class CoffeeProfile(BaseModel):
     profileType: int

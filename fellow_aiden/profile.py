@@ -1,6 +1,7 @@
 """Model to validate the coffee profile data"""
 from pydantic import BaseModel, field_validator, ValidationError
 from typing import List
+import re
 
 RATIO_ENUM = [14 + 0.5 * i for i in range(13)]                   # 14, 14.5, 15, ... , 20
 BLOOM_RATIO_ENUM = [1 + 0.5 * i for i in range(5)]               # 1, 1.5, 2, 2.5, 3

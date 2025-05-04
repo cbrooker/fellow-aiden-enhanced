@@ -97,6 +97,14 @@ class FellowAiden:
         self._log.debug("Fetching device for account")
         device_url = self.BASE_URL + self.API_DEVICES
         response = self.SESSION.get(device_url, params={'dataType': 'real'})
+        
+        # Check for unauthorized response and try to reauthenticate
+        if response.status_code == 401:
+            self._log.warning("Unauthorized response received. Attempting to reauthenticate...")
+            self.__auth()
+            # Retry the request with the new token
+            response = self.SESSION.get(device_url, params={'dataType': 'real'})
+            
         parsed = json.loads(response.content)
         self._device_config = parsed[0]  # Assumes single brewer per account
         self._brewer_id = self._device_config['id']
@@ -138,6 +146,14 @@ class FellowAiden:
         self._log.debug("Brew ID: %s" % brew_id)
         shared_url = self.BASE_URL + self.API_SHARED_PROFILE.format(bid=brew_id)
         response = self.SESSION.get(shared_url)
+        
+        # Check for unauthorized response and try to reauthenticate
+        if response.status_code == 401:
+            self._log.warning("Unauthorized response received. Attempting to reauthenticate...")
+            self.__auth()
+            # Retry the request with the new token
+            response = self.SESSION.get(shared_url)
+            
         if response.status_code != 200:
             raise ValueError(f"Failed to fetch profile (ID: {brew_id})")
         parsed = json.loads(response.content)
@@ -194,12 +210,62 @@ class FellowAiden:
         self._log.debug("Brew profile passed checks")
         profile_url = self.BASE_URL + self.API_PROFILES.format(id=self._brewer_id)
         response = self.SESSION.post(profile_url, json=data)
+        
+        # Check for unauthorized response and try to reauthenticate
+        if response.status_code == 401:
+            self._log.warning("Unauthorized response received. Attempting to reauthenticate...")
+            self.__auth()
+            # Retry the request with the new token
+            response = self.SESSION.post(profile_url, json=data)
+            
         parsed = json.loads(response.content)
         if 'id' not in parsed:
             raise Exception("Error in processing: %s" % parsed)
         self.__device()  # Refreshed profiles this way
         self._log.debug("Brew profile created: %s" % parsed)
         return parsed
+    
+    def update_profile(self, profile_id, data):
+        """Update an existing profile by ID."""
+        self._log.debug(f"Updating brew profile {profile_id}: {data}")
+        
+        # Validate the profile data
+        try:
+            CoffeeProfile.model_validate(data)
+        except ValidationError as err:
+            self._log.error("Brew profile format was invalid: %s" % err)
+            return False
+        
+        # Check if profile exists
+        if not self.__is_valid_profile_id(profile_id):
+            message = f"Profile with ID {profile_id} does not exist. Valid profiles: {self.__get_profile_ids()}"
+            raise Exception(message)
+        
+        # Remove any server-side fields that might be in the data
+        for field in self.SERVER_SIDE_PROFILE_FIELDS:
+            if field in data:
+                data.pop(field, None)
+        
+        # Use PATCH to update the profile
+        update_url = self.BASE_URL + self.API_PROFILE.format(id=self._brewer_id, pid=profile_id)
+        self._log.debug(f"Update URL: {update_url}")
+        response = self.SESSION.patch(update_url, json=data)
+        
+        # Check for unauthorized response and try to reauthenticate
+        if response.status_code == 401:
+            self._log.warning("Unauthorized response received. Attempting to reauthenticate...")
+            self.__auth()
+            # Retry the request with the new token
+            response = self.SESSION.patch(update_url, json=data)
+        
+        # Check response
+        if response.status_code >= 400:
+            parsed = json.loads(response.content)
+            raise Exception(f"Error updating profile: {parsed}")
+        
+        self.__device()  # Refresh profiles
+        self._log.info(f"Profile {profile_id} updated successfully")
+        return True
     
     def create_schedule(self, data):
         self._log.debug("Checking schedule: %s" % data)
@@ -216,6 +282,14 @@ class FellowAiden:
         self._log.debug("Brew schedule passed checks")
         schedule_url = self.BASE_URL + self.API_SCHEDULES.format(id=self._brewer_id)
         response = self.SESSION.post(schedule_url, json=data)
+        
+        # Check for unauthorized response and try to reauthenticate
+        if response.status_code == 401:
+            self._log.warning("Unauthorized response received. Attempting to reauthenticate...")
+            self.__auth()
+            # Retry the request with the new token
+            response = self.SESSION.post(schedule_url, json=data)
+            
         parsed = json.loads(response.content)
         if 'id' not in parsed:
             message = parsed.get('message', 'Unable to get error message.')
@@ -238,6 +312,14 @@ class FellowAiden:
         share_url = self.BASE_URL + self.API_PROFILE_SHARE.format(id=self._brewer_id, pid=pid)
         self._log.debug("Share URL: %s" % share_url)
         response = self.SESSION.post(share_url)
+        
+        # Check for unauthorized response and try to reauthenticate
+        if response.status_code == 401:
+            self._log.warning("Unauthorized response received. Attempting to reauthenticate...")
+            self.__auth()
+            # Retry the request with the new token
+            response = self.SESSION.post(share_url)
+            
         parsed = json.loads(response.content)
         if 'link' not in parsed:
             raise Exception("Error in processing: %s" % parsed)
@@ -252,6 +334,14 @@ class FellowAiden:
         delete_url = self.BASE_URL + self.API_PROFILE.format(id=self._brewer_id, pid=pid)
         self._log.debug(delete_url)
         response = self.SESSION.delete(delete_url)
+        
+        # Check for unauthorized response and try to reauthenticate
+        if response.status_code == 401:
+            self._log.warning("Unauthorized response received. Attempting to reauthenticate...")
+            self.__auth()
+            # Retry the request with the new token
+            response = self.SESSION.delete(delete_url)
+            
         self._log.info("Profile deleted")
         return True
     
@@ -271,6 +361,14 @@ class FellowAiden:
         self._log.debug("Patch URL: %s" % patch_url)
         data = json.dumps({setting: value})
         response = self.SESSION.patch(patch_url, data=data)
+        
+        # Check for unauthorized response and try to reauthenticate
+        if response.status_code == 401:
+            self._log.warning("Unauthorized response received. Attempting to reauthenticate...")
+            self.__auth()
+            # Retry the request with the new token
+            response = self.SESSION.patch(patch_url, data=data)
+            
         return response.content
     
     def toggle_schedule(self, sid, enabled):
@@ -281,6 +379,14 @@ class FellowAiden:
         self._log.debug("Patch URL: %s" % patch_url)
         data = json.dumps({'enabled': enabled})
         response = self.SESSION.patch(patch_url, data=data)
+        
+        # Check for unauthorized response and try to reauthenticate
+        if response.status_code == 401:
+            self._log.warning("Unauthorized response received. Attempting to reauthenticate...")
+            self.__auth()
+            # Retry the request with the new token
+            response = self.SESSION.patch(patch_url, data=data)
+            
         return response.content
         
     def authenticate(self):

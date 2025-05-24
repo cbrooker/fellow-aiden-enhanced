@@ -1,6 +1,7 @@
 """Model to validate the coffee profile data"""
 from pydantic import BaseModel, field_validator, ValidationError
 from typing import List
+import re
 
 RATIO_ENUM = [14 + 0.5 * i for i in range(13)]                   # 14, 14.5, 15, ... , 20
 BLOOM_RATIO_ENUM = [1 + 0.5 * i for i in range(5)]               # 1, 1.5, 2, 2.5, 3
@@ -9,6 +10,9 @@ BLOOM_TEMPERATURE_ENUM = [50 + 0.5 * i for i in range(99)]       # 50, 50.5, 51,
 PULSES_NUMBER_ENUM = list(range(1, 11))                          # 1 to 10
 PULSES_INTERVAL_ENUM = list(range(5, 61))                        # 5 to 60
 PULSE_TEMPERATURE_ENUM = [50 + 0.5 * i for i in range(99)]       # 50, 50.5, 51, 51.5 ... 99
+
+# allows A–Z, a–z, 0–9, and the specials !@#$%&*-+?/.,:)(
+TITLE_REGEX = re.compile(r'[A-Za-z0-9 !@#$%&*\-+?/.,:)(]+')
 
 class CoffeeProfile(BaseModel):
     profileType: int
@@ -32,6 +36,8 @@ class CoffeeProfile(BaseModel):
     def validate_title(cls, v):
         if len(v) > 50:
             raise ValueError(f"title must be less than or equal to 50 characters. Got {v}")
+        if not TITLE_REGEX.fullmatch(v):
+            raise ValueError(f"title only allows A–Z, a–z, 0–9, and the specials !@#$%&*-+?/.,:)(. Got {v}")
         return v
     
     @field_validator('ratio')

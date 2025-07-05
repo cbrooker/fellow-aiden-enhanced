@@ -109,11 +109,11 @@ class FellowAiden:
         self._device_config = parsed[0]  # Assumes single brewer per account
         self._brewer_id = self._device_config['id']
         
-        profiles_url = aiden.BASE_URL + aiden.API_PROFILES.format(id=self._brewer_id)
+        profiles_url = self.BASE_URL + self.API_PROFILES.format(id=self._brewer_id)
         response = self.SESSION.get(profiles_url)
         self._profiles = json.loads(response.content)
 
-        schedules_url = aiden.BASE_URL + aiden.API_SCHEDULES.format(id=self._brewer_id)
+        schedules_url = self.BASE_URL + self.API_SCHEDULES.format(id=self._brewer_id)
         response = self.SESSION.get(schedules_url)
         self._schedules = json.loads(response.content)
 

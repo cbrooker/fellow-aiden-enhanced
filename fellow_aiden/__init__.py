@@ -127,7 +127,7 @@ class FellowAiden:
     @property
     def profiles(self):
         if self._profiles is None:
-            self._log.debug("Fetching schedules")
+            self._log.debug("Fetching profiles")
             profiles_url = self.BASE_URL + self.API_PROFILES.format(id=self._brewer_id)
             response = self.SESSION.get(profiles_url)
             # Check for unauthorized response and try to reauthenticate
@@ -378,9 +378,10 @@ class FellowAiden:
         
     def delete_profile_by_id(self, pid):
         self._log.debug("Deleting profile")
-        if not self.__is_valid_profile_id(pid):
-            message = "Profile does not exist. Valid profiles: %s" % (self.__get_profile_ids())
-            raise Exception(message)
+        # Check is too slow with new lazy loading impelementation
+        # if not self.__is_valid_profile_id(pid):
+        #     message = "Profile does not exist. Valid profiles: %s" % (self.__get_profile_ids())
+        #     raise Exception(message)
         delete_url = self.BASE_URL + self.API_PROFILE.format(id=self._brewer_id, pid=pid)
         self._log.debug(delete_url)
         response = self.SESSION.delete(delete_url)

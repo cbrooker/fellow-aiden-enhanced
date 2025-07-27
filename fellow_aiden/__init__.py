@@ -8,6 +8,8 @@ from difflib import SequenceMatcher
 from fellow_aiden.profile import CoffeeProfile
 from fellow_aiden.schedule import CoffeeSchedule
 from pydantic import ValidationError
+from urllib3.util import Retry
+from requests.adapters import HTTPAdapter
 
 
 def similar(a, b):
@@ -47,6 +49,11 @@ class FellowAiden:
         'lastGBQuantity'
     ]
     SESSION = requests.Session()
+    retries = Retry(
+        total=3,
+        status_forcelist=[408, 500, 501, 502, 503, 504],
+    )
+    SESSION.mount('https://', HTTPAdapter(max_retries=retries))
     
 
     def __init__(self, email, password):
@@ -106,31 +113,74 @@ class FellowAiden:
             response = self.SESSION.get(device_url, params={'dataType': 'real'})
             
         parsed = json.loads(response.content)
+        self._log.debug(parsed)
         self._device_config = parsed[0]  # Assumes single brewer per account
         self._brewer_id = self._device_config['id']
-        self._profiles = self._device_config['profiles']
-        self._schedules = self._device_config['schedules']
+
+        self._profiles = None
+        self._schedules = None
+
+
         self._log.debug("Brewer ID: %s" % self._brewer_id)
         self._log.info("Device and profile information set")
 
+    @property
+    def profiles(self):
+        if self._profiles is None:
+            self._log.debug("Fetching profiles")
+            profiles_url = self.BASE_URL + self.API_PROFILES.format(id=self._brewer_id)
+            response = self.SESSION.get(profiles_url)
+            # Check for unauthorized response and try to reauthenticate
+            if response.status_code == 401:
+                self._log.warning("Unauthorized response received. Attempting to reauthenticate...")
+                self.__auth()
+                # Retry the request with the new token
+                response = self.SESSION.get(profiles_url)
+
+            parsed = json.loads(response.content)
+            self._log.debug(parsed)
+            self._profiles = parsed
+        
+        return self._profiles
+    
+    @property
+    def schedules(self):
+        if self._schedules is None:
+            self._log.debug("Fetching schedules")
+            schedules_url = self.BASE_URL + self.API_SCHEDULES.format(id=self._brewer_id)
+            response = self.SESSION.get(schedules_url)
+            # Check for unauthorized response and try to reauthenticate
+            if response.status_code == 401:
+                self._log.warning("Unauthorized response received. Attempting to reauthenticate...")
+                self.__auth()
+                # Retry the request with the new token
+                response = self.SESSION.get(schedules_url)
+
+            parsed = json.loads(response.content)
+            self._log.debug(parsed)
+            self._schedules = parsed
+        
+        return self._schedules
+
+
     def __get_profile_ids(self):
         """Return a list of profile IDs."""
-        return ["%s (%s)" % (profile['id'], profile['title']) for profile in self._profiles]
+        return ["%s (%s)" % (profile['id'], profile['title']) for profile in self.profiles]
     
     def __is_valid_profile_id(self, pid):
         """Check if a profile ID is valid."""
-        for profile in self._profiles:
+        for profile in self.profiles:
             if pid == profile['id']:
                 return True
         return False
     
     def __get_schedule_ids(self):
         """Return a list of schedule IDs."""
-        return ["%s" % (schedule['id']) for schedule in self._schedules]
+        return ["%s" % (schedule['id']) for schedule in self.schedules]
     
     def __is_valid_schedule_id(self, sid):
         """Check if a schedule ID is valid."""
-        for schedule in self._schedules:
+        for schedule in self.schedules:
             if sid == schedule['id']:
                 return True
         return False
@@ -178,13 +228,13 @@ class FellowAiden:
         return self._device_config.get('displayName', None)
         
     def get_profiles(self):
-        return self._profiles
+        return self.profiles
     
     def get_schedules(self):
-        return self._schedules
+        return self.schedules
     
     def get_profile_by_title(self, title, fuzzy=False):
-        for profile in self._profiles:
+        for profile in self.profiles:
             if fuzzy:
                 if similar(profile['title'].lower(), title.lower()) > 0.65:
                     return profile
@@ -328,9 +378,10 @@ class FellowAiden:
         
     def delete_profile_by_id(self, pid):
         self._log.debug("Deleting profile")
-        if not self.__is_valid_profile_id(pid):
-            message = "Profile does not exist. Valid profiles: %s" % (self.__get_profile_ids())
-            raise Exception(message)
+        # Check is too slow with new lazy loading impelementation
+        # if not self.__is_valid_profile_id(pid):
+        #     message = "Profile does not exist. Valid profiles: %s" % (self.__get_profile_ids())
+        #     raise Exception(message)
         delete_url = self.BASE_URL + self.API_PROFILE.format(id=self._brewer_id, pid=pid)
         self._log.debug(delete_url)
         response = self.SESSION.delete(delete_url)

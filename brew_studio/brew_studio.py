@@ -2,6 +2,7 @@ import streamlit as st
 from fellow_aiden import FellowAiden
 from fellow_aiden.profile import CoffeeProfile
 from openai import OpenAI
+from config_manager import ConfigManager
 
 SYSTEM = """
 Assume the role of a master coffee brewer. You focus exclusively on the pour over method and specialty coffee only. You often work with single origin coffees, but you also experiment with blends. Your recipes are executed by a robot, not a human, so maximum precision can be achieved. Temperatures are all maintained and stable in all steps. Always lead with the recipe, and only include explanations below that text, NOT inline. Below are the components of a recipe. 
@@ -95,10 +96,12 @@ def connect_to_coffee_brewer(email, password):
     if 'aiden' not in st.session_state:
         try:
             local = FellowAiden(email, password)
+            st.session_state['aiden'] = local
         except Exception as e:
             if "incorrect" in str(e):
                 return False
-        st.session_state['aiden'] = local
+            # Re-raise other exceptions
+            raise
 
     obj = {
         'device_settings': {
@@ -194,6 +197,9 @@ def get_share_link(title):
 # ------------------------------------------------------------------------------
 st.set_page_config(layout="wide")
 
+# Initialize configuration manager
+config_manager = ConfigManager()
+
 st.markdown(
     """
     <style>
@@ -220,12 +226,14 @@ if "selected_profile_index" not in st.session_state:
 # ------------------------------------------------------------------------------
 with st.sidebar:
     st.header("Fellow Email Address")
+    saved_email = config_manager.get_fellow_email()
     email = st.text_input(" ", placeholder="Enter your email", 
-                          key="email", label_visibility="collapsed")
+                          value=saved_email, key="email", label_visibility="collapsed")
 
     st.header("Fellow Password")
+    saved_password = config_manager.get_fellow_password()
     password = st.text_input(" ", placeholder="Enter your password", 
-                             type="password", key="password", label_visibility="collapsed")
+                             value=saved_password, type="password", key="password", label_visibility="collapsed")
 
     # Connect button
     if st.button("Connect"):
@@ -233,7 +241,11 @@ with st.sidebar:
             result = connect_to_coffee_brewer(email, password)
             if not result:
                 st.warning("Incorrect email or password.")
-            st.session_state.brewer_settings = result
+            else:
+                st.session_state.brewer_settings = result
+                # Save email to config file for next time (only if connection successful)
+                if email != saved_email:
+                    config_manager.save_fellow_email(email)
         else:
             st.warning("Please enter email and password first.")
 
@@ -271,8 +283,9 @@ with st.sidebar:
         # ---- AI BARISTA SECTION ----
         st.markdown("### AI Barista")
         st.markdown("#### OpenAI API Key")
+        saved_api_key = config_manager.get_openai_api_key()
         openai_api_key = st.text_input(" ", placeholder="Enter your OpenAI API Key", 
-                                    type="password", key="openai_api_key", label_visibility="collapsed")
+                                    value=saved_api_key, type="password", key="openai_api_key", label_visibility="collapsed")
         user_coffee_request = st.text_area(
             "Describe your coffee:",
             placeholder="Light roasted blend of washed (Sidama, Ethiopia) and gesha (Santa Barbara, Honduras) coffees",
@@ -333,6 +346,24 @@ with st.sidebar:
             st.write(f"**{k.replace('_', ' ').title()}**: {v}")
         if st.button("Dump Config"):
             st.write(st.session_state['aiden'].get_device_config())
+            
+        st.markdown("---")
+        
+        # Configuration Info
+        if st.button("ℹ️ Config Info"):
+            st.markdown("**Configuration Sources:**")
+            config_info = config_manager.get_config_info()
+            for info in config_info:
+                st.write(f"• {info}")
+            
+            st.markdown("**For Docker deployment:**")
+            st.write("Set environment variables:")
+            st.code("""
+FELLOW_EMAIL=your@email.com
+FELLOW_PASSWORD=yourpassword
+OPENAI_API_KEY=sk-...
+            """)
+            st.write("Or use Streamlit secrets in `.streamlit/secrets.toml`")
 
 
 

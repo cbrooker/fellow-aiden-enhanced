@@ -13,5 +13,5 @@ venv3/
 .notes
 client.py
 .devcontainer
-.streamlit
+.streamlit/secrets.toml
 .vscode

@@ -3,6 +3,10 @@ from fellow_aiden import FellowAiden
 from fellow_aiden.profile import CoffeeProfile
 from openai import OpenAI
 from config_manager import ConfigManager
+import json
+import os
+from datetime import datetime
+from pathlib import Path
 
 SYSTEM = """
 Assume the role of a master coffee brewer. You focus exclusively on the pour over method and specialty coffee only. You often work with single origin coffees, but you also experiment with blends. Your recipes are executed by a robot, not a human, so maximum precision can be achieved. Temperatures are all maintained and stable in all steps. Always lead with the recipe, and only include explanations below that text, NOT inline. Below are the components of a recipe. 
@@ -193,12 +197,505 @@ def get_share_link(title):
     return st.session_state['aiden'].generate_share_link(profile['id'])
 
 # ------------------------------------------------------------------------------
+# Profile Management Functions
+# ------------------------------------------------------------------------------
+def get_backup_file_path():
+    """Get the path for the profile backup file."""
+    return Path("profile_backups.json")
+
+def load_profile_backups():
+    """Load profile backups from JSON file."""
+    backup_file = get_backup_file_path()
+    if backup_file.exists():
+        try:
+            with open(backup_file, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            st.warning(f"Could not load profile backups: {e}")
+            return []
+    return []
+
+def save_profile_backup(profile):
+    """Save a profile to the backup file."""
+    backups = load_profile_backups()
+    
+    # Add timestamp and backup info
+    backup_entry = {
+        "backed_up_at": datetime.now().isoformat(),
+        "profile": profile.copy()
+    }
+    
+    backups.append(backup_entry)
+    
+    # Keep only the last 50 backups to prevent file from growing too large
+    if len(backups) > 50:
+        backups = backups[-50:]
+    
+    backup_file = get_backup_file_path()
+    try:
+        with open(backup_file, 'w') as f:
+            json.dump(backups, f, indent=2)
+        return True
+    except Exception as e:
+        st.error(f"Could not save profile backup: {e}")
+        return False
+
+def delete_profile_with_backup(profile_id, profile_title):
+    """Delete a profile and create a backup."""
+    try:
+        # Get the profile data before deletion
+        profile = st.session_state['aiden'].get_profile_by_title(profile_title)
+        if profile:
+            # Save backup before deletion
+            if save_profile_backup(profile):
+                st.success(f"Profile '{profile_title}' backed up successfully")
+            
+            # Delete the profile
+            st.session_state['aiden'].delete_profile_by_id(profile_id)
+            st.success(f"Profile '{profile_title}' deleted successfully")
+            
+            # Refresh the session state
+            st.session_state.brewer_settings = connect_to_coffee_brewer(
+                st.session_state.get('email', ''), 
+                st.session_state.get('password', '')
+            )
+            st.rerun()
+        else:
+            st.error("Profile not found")
+    except Exception as e:
+        st.error(f"Failed to delete profile: {e}")
+
+def restore_profile_from_backup(backup_entry):
+    """Restore a profile from backup."""
+    try:
+        profile_data = backup_entry["profile"].copy()
+        
+        # Remove server-side fields before creating
+        server_fields = ['id', 'createdAt', 'deletedAt', 'lastUsedTime', 'sharedFrom', 
+                        'isDefaultProfile', 'instantBrew', 'folder', 'duration', 'lastGBQuantity']
+        for field in server_fields:
+            profile_data.pop(field, None)
+        
+        # Add a timestamp to the title to avoid conflicts
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        original_title = profile_data.get('title', 'Restored Profile')
+        profile_data['title'] = f"{original_title}_restored_{timestamp}"
+        
+        # Create the profile
+        result = st.session_state['aiden'].create_profile(profile_data)
+        if result:
+            st.success(f"Profile '{profile_data['title']}' restored successfully")
+            
+            # Refresh the session state
+            st.session_state.brewer_settings = connect_to_coffee_brewer(
+                st.session_state.get('email', ''), 
+                st.session_state.get('password', '')
+            )
+            st.rerun()
+        else:
+            st.error("Failed to restore profile")
+    except Exception as e:
+        st.error(f"Failed to restore profile: {e}")
+
+# ------------------------------------------------------------------------------
+# Navigation Functions
+# ------------------------------------------------------------------------------
+def render_navigation():
+    """Render the top navigation menu."""
+    if st.session_state.logged_in:
+        st.markdown("### ☕ Fellow Aiden Brew Studio")
+        
+        col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+        
+        with col1:
+            if st.button("🏠 Dashboard", key="nav_dashboard"):
+                st.session_state.current_page = "dashboard"
+                st.rerun()
+        
+        with col2:
+            if st.button("📋 Profile Manager", key="nav_profiles"):
+                st.session_state.current_page = "profiles"
+                st.rerun()
+        
+        with col3:
+            if st.button("🤖 AI Barista", key="nav_ai"):
+                st.session_state.current_page = "ai_barista"
+                st.rerun()
+        
+        with col4:
+            if st.button("🔗 Brew Links", key="nav_links"):
+                st.session_state.current_page = "brew_links"
+                st.rerun()
+        
+        with col5:
+            if st.button("📦 Backups", key="nav_backups"):
+                st.session_state.current_page = "backups"
+                st.rerun()
+        
+        with col6:
+            if st.button("⚙️ Settings", key="nav_settings"):
+                st.session_state.current_page = "settings"
+                st.rerun()
+        
+        with col7:
+            if st.button("🚪 Logout", key="nav_logout"):
+                st.session_state.logged_in = False
+                st.session_state.current_page = "login"
+                st.session_state.pop('aiden', None)
+                st.session_state.pop('brewer_settings', None)
+                st.rerun()
+        
+        st.markdown("---")
+
+def render_login_page():
+    """Render the login page."""
+    st.markdown("# ☕ Fellow Aiden Brew Studio")
+    st.markdown("### Connect to your Fellow Aiden Coffee Brewer")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown("#### Fellow Account Credentials")
+        
+        saved_email = config_manager.get_fellow_email()
+        email = st.text_input(
+            "Email Address", 
+            value=saved_email,
+            placeholder="your@email.com"
+        )
+        
+        saved_password = config_manager.get_fellow_password()
+        password = st.text_input(
+            "Password", 
+            value=saved_password,
+            type="password",
+            placeholder="Your Fellow password"
+        )
+        
+        st.markdown("")
+        
+        if st.button("🔌 Connect to Brewer", type="primary", use_container_width=True):
+            if email and password:
+                with st.spinner("Connecting to your Fellow Aiden brewer..."):
+                    result = connect_to_coffee_brewer(email, password)
+                    if result:
+                        st.session_state.brewer_settings = result
+                        st.session_state.logged_in = True
+                        st.session_state.current_page = "dashboard"
+                        # Save email for next time
+                        if email != saved_email:
+                            config_manager.save_fellow_email(email)
+                        st.success("✅ Successfully connected!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Connection failed. Please check your credentials.")
+            else:
+                st.warning("⚠️ Please enter both email and password.")
+        
+        st.markdown("---")
+        st.markdown("**Configuration Sources:**")
+        config_info = config_manager.get_config_info()
+        for info in config_info:
+            st.write(f"• {info}")
+
+# ------------------------------------------------------------------------------
+# Page Rendering Functions  
+# ------------------------------------------------------------------------------
+def render_dashboard():
+    """Render the main dashboard."""
+    st.markdown("## 🏠 Dashboard")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 🔧 Brewer Information")
+        device_info = st.session_state.brewer_settings["device_settings"]
+        for k, v in device_info.items():
+            st.write(f"**{k.replace('_', ' ').title()}**: {v}")
+    
+    with col2:
+        st.markdown("### 📊 Profile Overview")
+        profiles = st.session_state.brewer_settings["profiles"]
+        profile_count = len(profiles)
+        
+        # Profile count with visual indicator
+        if profile_count >= 14:
+            st.markdown(f"🔴 **{profile_count}/14 Profiles** (Full)")
+            st.error("⚠️ Profile storage is full. Consider deleting unused profiles.")
+        elif profile_count >= 12:
+            st.markdown(f"🟡 **{profile_count}/14 Profiles** (Nearly Full)")
+            st.warning("Getting close to the 14 profile limit.")
+        else:
+            st.markdown(f"🟢 **{profile_count}/14 Profiles**")
+            st.success(f"You have {14 - profile_count} profile slots available.")
+        
+        # Quick stats
+        backups = load_profile_backups()
+        st.write(f"📦 **{len(backups)} Profile Backups** available")
+        
+        if profiles:
+            # Sort profiles by lastUsedTime, handling None values and different types
+            def get_sort_key(profile):
+                last_used = profile.get('lastUsedTime')
+                if last_used is None:
+                    return 0  # Default to 0 for None values
+                if isinstance(last_used, (int, float)):
+                    return last_used  # Return numeric timestamp as-is
+                return last_used  # Return string timestamp as-is
+            
+            recent_profiles = sorted(profiles, key=get_sort_key, reverse=True)[:3]
+            st.markdown("**Recently Used Profiles:**")
+            for profile in recent_profiles:
+                st.write(f"• {profile['title']}")
+
+def render_profile_manager():
+    """Render the profile management page."""
+    st.markdown("## 📋 Profile Manager")
+    
+    profiles = st.session_state.brewer_settings["profiles"]
+    profile_count = len(profiles)
+    
+    # Profile count header
+    if profile_count >= 14:
+        st.markdown(f"🔴 **{profile_count}/14 Profiles** (Full)")
+    elif profile_count >= 12:
+        st.markdown(f"🟡 **{profile_count}/14 Profiles** (Nearly Full)")
+    else:
+        st.markdown(f"🟢 **{profile_count}/14 Profiles**")
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.markdown("### Select Profile")
+        titles = [p["title"] for p in profiles]
+        
+        choice = st.selectbox(
+            "Choose a profile to edit:",
+            ["— Select Profile —"] + titles,
+            key="profile_manager_choice"
+        )
+        
+        if choice != "— Select Profile —":
+            selected_profile = profiles[titles.index(choice)]
+            
+            st.markdown("### Quick Actions")
+            if st.button("🗑️ Delete Profile", key="quick_delete"):
+                if st.session_state.get('confirm_quick_delete', False):
+                    delete_profile_with_backup(selected_profile['id'], selected_profile['title'])
+                    st.session_state.confirm_quick_delete = False
+                else:
+                    st.session_state.confirm_quick_delete = True
+                    st.rerun()
+                    
+            if st.session_state.get('confirm_quick_delete', False):
+                st.warning(f"⚠️ Really delete '{selected_profile['title']}'?")
+                if st.button("Cancel", key="cancel_quick_delete"):
+                    st.session_state.confirm_quick_delete = False
+                    st.rerun()
+            
+            if st.button("🔗 Share Profile"):
+                link = get_share_link(selected_profile["title"])
+                if link:
+                    st.success("Share link generated!")
+                    st.code(link)
+    
+    with col2:
+        if choice != "— Select Profile —":
+            selected_index = titles.index(choice)
+            profile_data = profiles[selected_index]
+            render_profile_editor(profile_data, profile_key=f"manager_{selected_index}")
+        else:
+            st.markdown("### Profile Editor")
+            st.info("👈 Select a profile from the list to edit it here.")
+
+def render_ai_barista():
+    """Render the AI Barista page."""
+    st.markdown("## 🤖 AI Barista")
+    st.markdown("Generate custom coffee profiles using AI based on your coffee description.")
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.markdown("### Configuration")
+        saved_api_key = config_manager.get_openai_api_key()
+        openai_api_key = st.text_input(
+            "OpenAI API Key", 
+            value=saved_api_key,
+            type="password",
+            placeholder="sk-your-openai-api-key"
+        )
+        
+        st.markdown("### Coffee Description")
+        user_coffee_request = st.text_area(
+            "Describe your coffee:",
+            placeholder="Light roasted blend of washed (Sidama, Ethiopia) and gesha (Santa Barbara, Honduras) coffees",
+            height=150
+        )
+        
+        if st.button("🎯 Generate AI Profile", type="primary", use_container_width=True):
+            if openai_api_key.strip():
+                st.session_state['oai'] = OpenAI(api_key=openai_api_key)
+                if user_coffee_request.strip():
+                    try:
+                        with st.spinner("AI is crafting your perfect brew profile..."):
+                            new_profile_data = generate_ai_recipe_and_explanation(user_coffee_request)
+                        st.session_state.ai_generated_profile = new_profile_data
+                        st.success("🎉 AI profile generated successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to generate AI recipe: {e}")
+                else:
+                    st.warning("Please enter a coffee description first.")
+            else:
+                st.warning("Please enter an OpenAI API key first.")
+    
+    with col2:
+        if st.session_state.get('ai_generated_profile'):
+            st.markdown("### Generated Profile")
+            render_profile_editor(st.session_state.ai_generated_profile, profile_key="ai_generated")
+        else:
+            st.markdown("### AI Profile Preview")
+            st.info("👈 Generate an AI profile to see it here for editing and saving.")
+
+def render_brew_links():
+    """Render the Brew Links import page."""
+    st.markdown("## 🔗 Brew Links")
+    st.markdown("Import coffee profiles from shared Fellow Aiden brew links.")
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.markdown("### Import Profile")
+        brew_link = st.text_input(
+            "Brew Link",
+            placeholder="https://fellow.co/p/abc123 or paste link here...",
+            help="Paste a Fellow Aiden brew link to import the profile"
+        )
+        
+        if st.button("📥 Import Profile", type="primary", use_container_width=True):
+            if brew_link.strip():
+                try:
+                    with st.spinner("Importing profile from brew link..."):
+                        new_profile_data = parse_brewlink(brew_link)
+                    st.session_state.imported_profile = new_profile_data
+                    st.success("✅ Profile imported successfully!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to import profile: {e}")
+            else:
+                st.warning("Please enter a brew link first.")
+    
+    with col2:
+        if st.session_state.get('imported_profile'):
+            st.markdown("### Imported Profile")
+            render_profile_editor(st.session_state.imported_profile, profile_key="imported")
+        else:
+            st.markdown("### Profile Preview")
+            st.info("👈 Import a brew link to see the profile here for editing and saving.")
+
+def render_backups():
+    """Render the backup management page."""
+    st.markdown("## 📦 Profile Backups")
+    st.markdown("Manage your profile backups and restore deleted profiles.")
+    
+    backups = load_profile_backups()
+    
+    if backups:
+        st.success(f"📦 {len(backups)} profile backups available")
+        
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            st.markdown("### Backup History")
+            st.write(f"Showing last {min(len(backups), 20)} backups:")
+            
+            selected_backup = None
+            for i, backup in enumerate(reversed(backups[-20:])):
+                backup_date = datetime.fromisoformat(backup['backed_up_at']).strftime("%Y-%m-%d %H:%M")
+                profile_title = backup['profile'].get('title', 'Unknown')
+                
+                if st.button(f"📄 {profile_title}", key=f"backup_select_{i}"):
+                    st.session_state.selected_backup = backup
+                    st.rerun()
+                
+                st.caption(f"Backed up: {backup_date}")
+                st.markdown("---")
+        
+        with col2:
+            if st.session_state.get('selected_backup'):
+                backup = st.session_state.selected_backup
+                st.markdown("### Backup Preview")
+                
+                profile_data = backup['profile'].copy()
+                backup_date = datetime.fromisoformat(backup['backed_up_at']).strftime("%Y-%m-%d %H:%M:%S")
+                
+                st.info(f"**Backed up:** {backup_date}")
+                st.write(f"**Title:** {profile_data.get('title', 'Unknown')}")
+                st.write(f"**Description:** {profile_data.get('description', 'No description')[:100]}...")
+                
+                if st.button("🔄 Restore This Profile", type="primary"):
+                    restore_profile_from_backup(backup)
+                
+                with st.expander("View Full Profile Data"):
+                    st.json(profile_data)
+            else:
+                st.markdown("### Backup Preview")
+                st.info("👈 Select a backup from the history to preview and restore it.")
+    else:
+        st.info("📦 No profile backups available yet.")
+        st.markdown("Backups are automatically created when you delete profiles.")
+
+def render_settings():
+    """Render the settings page."""
+    st.markdown("## ⚙️ Settings")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### Configuration Information")
+        config_info = config_manager.get_config_info()
+        for info in config_info:
+            st.write(f"• {info}")
+        
+        st.markdown("### Device Configuration")
+        if st.button("🔍 Show Device Config"):
+            st.json(st.session_state['aiden'].get_device_config())
+    
+    with col2:
+        st.markdown("### Docker Deployment")
+        st.markdown("For Docker deployment, set these environment variables:")
+        st.code("""
+FELLOW_EMAIL=your@email.com
+FELLOW_PASSWORD=yourpassword
+OPENAI_API_KEY=sk-your-openai-api-key
+        """)
+        
+        st.markdown("### Streamlit Secrets")
+        st.markdown("Or use `.streamlit/secrets.toml` for development:")
+        st.code("""
+FELLOW_EMAIL = "your@email.com"
+FELLOW_PASSWORD = "yourpassword"
+OPENAI_API_KEY = "sk-your-openai-api-key"
+        """)
+
+# ------------------------------------------------------------------------------
 # Streamlit Setup
 # ------------------------------------------------------------------------------
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="Fellow Aiden Brew Studio",
+    page_icon="☕",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
 # Initialize configuration manager
 config_manager = ConfigManager()
+
+# Initialize session state for navigation
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "login"
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
 st.markdown(
     """
@@ -212,341 +709,52 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if "brewer_settings" not in st.session_state:
-    st.session_state.brewer_settings = None
-
-if "new_profile" not in st.session_state:
-    st.session_state.new_profile = None
-
-if "selected_profile_index" not in st.session_state:
-    st.session_state.selected_profile_index = None
-
 # ------------------------------------------------------------------------------
-# Sidebar
+# Main Application Routing
 # ------------------------------------------------------------------------------
-with st.sidebar:
-    st.header("Fellow Email Address")
+
+# Auto-login if credentials are available from environment/secrets
+if not st.session_state.logged_in and not st.session_state.get('login_attempted', False):
     saved_email = config_manager.get_fellow_email()
-    email = st.text_input(" ", placeholder="Enter your email", 
-                          value=saved_email, key="email", label_visibility="collapsed")
-
-    st.header("Fellow Password")
     saved_password = config_manager.get_fellow_password()
-    password = st.text_input(" ", placeholder="Enter your password", 
-                             value=saved_password, type="password", key="password", label_visibility="collapsed")
-
-    # Connect button
-    if st.button("Connect"):
-        if email and password:
-            result = connect_to_coffee_brewer(email, password)
-            if not result:
-                st.warning("Incorrect email or password.")
-            else:
+    
+    if saved_email and saved_password:
+        with st.spinner("Auto-connecting with saved credentials..."):
+            result = connect_to_coffee_brewer(saved_email, saved_password)
+            if result:
                 st.session_state.brewer_settings = result
-                # Save email to config file for next time (only if connection successful)
-                if email != saved_email:
-                    config_manager.save_fellow_email(email)
-        else:
-            st.warning("Please enter email and password first.")
+                st.session_state.logged_in = True
+                st.session_state.current_page = "dashboard"
+                st.rerun()
+    
+    st.session_state.login_attempted = True
 
-    st.markdown("---")
+# Render navigation if logged in
+render_navigation()
 
-    # If connected, show device info and profile management
-    if st.session_state.brewer_settings:
-        st.markdown("**New Profile from Brew Link**")
-
-        brew_link = st.text_input(
-            "Brew Link",
-            placeholder="Paste brew link here...",
-            key="brew_link"
-        )
-        
-        # Create profile from brew link
-        if st.button("Create Profile from Brew Link"):
-            # 1. Parse the new data
-            new_profile_data = parse_brewlink(brew_link)
-            
-            # 2. Clear out old "new_*" keys
-            for key in list(st.session_state.keys()):
-                if key.startswith("new_"):
-                    del st.session_state[key]
-            
-            # 3. Set the brand-new profile
-            st.session_state.new_profile = new_profile_data
-            
-            # 4. Clear out existing profile selection
-            st.session_state.selected_profile_index = None
-            st.session_state.selected_profile_choice = "— None —"
-
-        st.markdown("---")
-
-        # ---- AI BARISTA SECTION ----
-        st.markdown("### AI Barista")
-        st.markdown("#### OpenAI API Key")
-        saved_api_key = config_manager.get_openai_api_key()
-        openai_api_key = st.text_input(" ", placeholder="Enter your OpenAI API Key", 
-                                    value=saved_api_key, type="password", key="openai_api_key", label_visibility="collapsed")
-        user_coffee_request = st.text_area(
-            "Describe your coffee:",
-            placeholder="Light roasted blend of washed (Sidama, Ethiopia) and gesha (Santa Barbara, Honduras) coffees",
-            key="ai_barista_input"
-        )
-
-        openai_api_key = openai_api_key.strip()
-        if st.button("Generate AI Profile", key="ai_barista_button"):
-            if openai_api_key.strip():
-                st.session_state['oai'] = OpenAI(api_key=openai_api_key)
-                if user_coffee_request.strip():
-
-                    try:
-                        new_profile_data = generate_ai_recipe_and_explanation(user_coffee_request)
-                    except Exception as e:
-                        st.warning(f"Failed to generate AI recipe: {e}")
-                        new_profile_data = None
-                    
-                    # 2. Clear out old "new_*" keys
-                    for key in list(st.session_state.keys()):
-                        if key.startswith("new_"):
-                            del st.session_state[key]
-                    
-                    # 3. Set the brand-new profile
-                    st.session_state.new_profile = new_profile_data
-                    
-                    # 4. Clear out existing profile selection
-                    st.session_state.selected_profile_index = None
-                    st.session_state.selected_profile_choice = "— None —"
-
-                else:
-                    st.warning("Please enter a description first.")
-            else:
-                st.warning("Please enter an OpenAI key first.")
-
-        st.markdown("---")
-
-        # ---- Existing Profiles ----
-        st.markdown("**Existing Profiles**")
-        profiles = st.session_state.brewer_settings["profiles"]
-        titles = [p["title"] for p in profiles]
-
-        choice = st.selectbox(
-            "Select a Profile", 
-            ["— None —"] + titles, 
-            key="selected_profile_choice"
-        )
-        if choice != "— None —":
-            st.session_state.selected_profile_index = titles.index(choice)
-            st.session_state.new_profile = None
-        else:
-            st.session_state.selected_profile_index = None
-
-        st.markdown("---")     
-        device_info = st.session_state.brewer_settings["device_settings"]
-        st.markdown("**Connected Brewer Settings**")
-        for k, v in device_info.items():
-            st.write(f"**{k.replace('_', ' ').title()}**: {v}")
-        if st.button("Dump Config"):
-            st.write(st.session_state['aiden'].get_device_config())
-            
-        st.markdown("---")
-        
-        # Configuration Info
-        if st.button("ℹ️ Config Info"):
-            st.markdown("**Configuration Sources:**")
-            config_info = config_manager.get_config_info()
-            for info in config_info:
-                st.write(f"• {info}")
-            
-            st.markdown("**For Docker deployment:**")
-            st.write("Set environment variables:")
-            st.code("""
-FELLOW_EMAIL=your@email.com
-FELLOW_PASSWORD=yourpassword
-OPENAI_API_KEY=sk-...
-            """)
-            st.write("Or use Streamlit secrets in `.streamlit/secrets.toml`")
-
-
-
-# ------------------------------------------------------------------------------
-# Helper: Profile Editor
-# ------------------------------------------------------------------------------
-def render_profile_editor(profile_dict, profile_key="existing"):
-    """
-    Renders the same set of sliders/checkboxes used for editing a profile,
-    plus a text area for 'description'.
-    """
-    def ss_key(k):
-        return f"{profile_key}_{k}"
-
-    st.write("### Editing Profile")
-
-    # Title
-    st.session_state[ss_key("title")] = st.text_input(
-        "Profile Title",
-        value=profile_dict["title"],
-        key=ss_key("title_input")
-    )
-
-    # Description (AI Explanation or user text)
-    st.session_state[ss_key("description")] = st.text_area(
-        "Description (auto-filled by AI Barista or manually edited):",
-        value=profile_dict.get("description", ""),   # default to "" if missing
-        key=ss_key("description_input"),
-        height=100
-    )
-
-    # Save button
-    if st.button("Save", key=ss_key("save_button")):
-        updated_profile = {
-            "profileType": profile_dict.get("profileType", "custom"),  
-            "title": st.session_state[ss_key("title_input")],
-            "description": st.session_state.get(ss_key("description_input"), profile_dict.get("description", "")),
-            "ratio": st.session_state.get(ss_key("ratio"), profile_dict.get("ratio", 16.0)),
-            "bloomRatio": st.session_state.get(ss_key("bloomRatio"), profile_dict.get("bloomRatio", 2.0)),
-            "bloomDuration": st.session_state.get(ss_key("bloomDuration"), profile_dict.get("bloomDuration", 30)),
-            "bloomTemperature": st.session_state.get(ss_key("bloomTemperature"), profile_dict.get("bloomTemperature", 93.0)),
-            "bloomEnabled": st.session_state.get(ss_key("bloomEnabled"), profile_dict.get("bloomEnabled", True)),
-            "ssPulsesEnabled": st.session_state.get(ss_key("ssPulsesEnabled"), profile_dict.get("ssPulsesEnabled", False)),
-            "ssPulsesNumber": st.session_state.get(ss_key("ssPulsesNumber"), profile_dict.get("ssPulsesNumber", 1)),
-            "ssPulsesInterval": st.session_state.get(ss_key("ssPulsesInterval"), profile_dict.get("ssPulsesInterval", 10)),
-            "ssPulseTemperatures": st.session_state.get(ss_key("ssPulseTemperatures"), profile_dict.get("ssPulseTemperatures", [93])),
-            "batchPulsesEnabled": st.session_state.get(ss_key("batchPulsesEnabled"), profile_dict.get("batchPulsesEnabled", False)),
-            "batchPulsesNumber": st.session_state.get(ss_key("batchPulsesNumber"), profile_dict.get("batchPulsesNumber", 1)),
-            "batchPulsesInterval": st.session_state.get(ss_key("batchPulsesInterval"), profile_dict.get("batchPulsesInterval", 10)),
-            "batchPulseTemperatures": st.session_state.get(ss_key("batchPulseTemperatures"), profile_dict.get("batchPulseTemperatures", [93])),
-        }
-        # print(updated_profile)
-        save_profile_to_coffee_machine(updated_profile["title"], updated_profile)
-
-        # Overwrite the original dict so we see changes right away
-        for k, v in updated_profile.items():
-            profile_dict[k] = v
-
-    if st.button("Share", key=ss_key("share_button")):
-        link = get_share_link(profile_dict["title"])
-        if link:
-            st.write(f"**Share Link**: {link}")
-
-    # Bloom
-    bloom_enabled = st.checkbox(
-        "Enable Bloom?",
-        value=profile_dict.get("bloomEnabled", True),
-        key=ss_key("bloomEnabled")
-    )
-    ratio = st.slider(
-        "Ratio",
-        14.0, 20.0, step=0.5,
-        value=float(profile_dict.get("ratio", 16.0)),
-        key=ss_key("ratio")
-    )
-
-    if bloom_enabled:
-        bloom_ratio = st.slider(
-            "Bloom Ratio",
-            1.0, 3.0, step=0.5,
-            value=float(profile_dict.get("bloomRatio", 2.0)),
-            key=ss_key("bloomRatio")
-        )
-        bloom_duration = st.slider(
-            "Bloom Duration (seconds)",
-            1, 120, step=1,
-            value=profile_dict.get("bloomDuration", 30),
-            key=ss_key("bloomDuration")
-        )
-        bloom_temp = st.slider(
-            "Bloom Temperature (°C)",
-            50.0, 99.0, step=0.5,
-            value=float(profile_dict.get("bloomTemperature", 93.0)),
-            key=ss_key("bloomTemperature")
-        )
-    else:
-        st.write("Bloom is disabled.")
-
-    st.markdown("---")
-    # Single-Serve pulses
-    ss_pulses_enabled = st.checkbox(
-        "Enable Single-Serve Pulses?",
-        value=profile_dict.get("ssPulsesEnabled", False),
-        key=ss_key("ssPulsesEnabled")
-    )
-    ss_pulses_number = st.number_input(
-        "Number of SS Pulses",
-        min_value=1, max_value=10,
-        value=profile_dict.get("ssPulsesNumber", 1),
-        key=ss_key("ssPulsesNumber")
-    )
-    ss_pulses_interval = st.number_input(
-        "Time between SS Pulses (sec)",
-        min_value=1, max_value=60,
-        value=profile_dict.get("ssPulsesInterval", 10),
-        key=ss_key("ssPulsesInterval")
-    )
-
-    # Handle single-serve pulse temperatures
-    if ss_key("ssPulseTemperatures") not in st.session_state:
-        st.session_state[ss_key("ssPulseTemperatures")] = profile_dict.get("ssPulseTemperatures", [93])
-
-    while len(st.session_state[ss_key("ssPulseTemperatures")]) < ss_pulses_number:
-        st.session_state[ss_key("ssPulseTemperatures")].append(90)
-    st.session_state[ss_key("ssPulseTemperatures")] = \
-        st.session_state[ss_key("ssPulseTemperatures")][:ss_pulses_number]
-
-    for i in range(ss_pulses_number):
-        temp_key = f"{ss_key('ssTemp')}_{i}"
-        st.session_state[ss_key("ssPulseTemperatures")][i] = st.slider(
-            f"SS Pulse {i+1} Temperature (°C)",
-            min_value=50.0, max_value=99.0, step=0.5,
-            value=float(st.session_state[ss_key("ssPulseTemperatures")][i]),
-            key=temp_key
-        )
-
-    st.markdown("---")
-    # Batch pulses
-    batch_pulses_enabled = st.checkbox(
-        "Enable Batch Pulses?",
-        value=profile_dict.get("batchPulsesEnabled", False),
-        key=ss_key("batchPulsesEnabled")
-    )
-    batch_pulses_number = st.number_input(
-        "Number of Batch Pulses",
-        min_value=1, max_value=10,
-        value=profile_dict.get("batchPulsesNumber", 1),
-        key=ss_key("batchPulsesNumber")
-    )
-    batch_pulses_interval = st.number_input(
-        "Time between Batch Pulses (sec)",
-        min_value=1, max_value=60,
-        value=profile_dict.get("batchPulsesInterval", 10),
-        key=ss_key("batchPulsesInterval")
-    )
-
-    if ss_key("batchPulseTemperatures") not in st.session_state:
-        st.session_state[ss_key("batchPulseTemperatures")] = profile_dict.get("batchPulseTemperatures", [93])
-
-    while len(st.session_state[ss_key("batchPulseTemperatures")]) < batch_pulses_number:
-        st.session_state[ss_key("batchPulseTemperatures")].append(90)
-    st.session_state[ss_key("batchPulseTemperatures")] = \
-        st.session_state[ss_key("batchPulseTemperatures")][:batch_pulses_number]
-
-    for i in range(batch_pulses_number):
-        temp_key = f"{ss_key('batchTemp')}_{i}"
-        st.session_state[ss_key("batchPulseTemperatures")][i] = st.slider(
-            f"Batch Pulse {i+1} Temperature (°C)",
-            min_value=50.0, max_value=99.0, step=0.5,
-            value=float(st.session_state[ss_key("batchPulseTemperatures")][i]),
-            key=temp_key
-        )
-
-# ------------------------------------------------------------------------------
-# Main Page Layout
-# ------------------------------------------------------------------------------
-if st.session_state.new_profile:
-    # Render the newly created profile from Brew Link or AI Barista
-    render_profile_editor(st.session_state.new_profile, profile_key="new")
-elif st.session_state.selected_profile_index is not None:
-    # Render an existing profile
-    idx = st.session_state.selected_profile_index
-    p_data = st.session_state.brewer_settings["profiles"][idx]
-    render_profile_editor(p_data, profile_key=f"existing_{idx}")
+# Route to appropriate page
+if not st.session_state.logged_in:
+    render_login_page()
 else:
-    st.write("No profile selected or created.")
+    page = st.session_state.current_page
+    
+    if page == "dashboard":
+        render_dashboard()
+    elif page == "profiles":
+        render_profile_manager()
+    elif page == "ai_barista":
+        render_ai_barista()
+    elif page == "brew_links":
+        render_brew_links()
+    elif page == "backups":
+        render_backups()
+    elif page == "settings":
+        render_settings()
+    else:
+        # Default to dashboard
+        st.session_state.current_page = "dashboard"
+        render_dashboard()
+
+# ------------------------------------------------------------------------------
+# Legacy Support - render_profile_editor moved to navigation functions above
+# ------------------------------------------------------------------------------
